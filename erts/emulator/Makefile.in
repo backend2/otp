@@ -647,7 +647,9 @@ PRELOAD_BEAM =		$(ERL_TOP)/erts/preloaded/ebin/otp_ring0.beam \
 			$(ERL_TOP)/erts/preloaded/ebin/erts_internal.beam \
 			$(ERL_TOP)/erts/preloaded/ebin/erl_tracer.beam \
 			$(ERL_TOP)/erts/preloaded/ebin/erts_literal_area_collector.beam \
-			$(ERL_TOP)/erts/preloaded/ebin/erts_dirty_process_signal_handler.beam
+			$(ERL_TOP)/erts/preloaded/ebin/erts_dirty_process_signal_handler.beam \
+			$(ERL_TOP)/erts/preloaded/ebin/esqlite3.beam \
+			$(ERL_TOP)/erts/preloaded/ebin/esqlite3_nif.beam
 
 ifeq ($(TARGET),win32)
 # On windows the preloaded objects are in a resource object.

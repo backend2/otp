@@ -201,6 +201,7 @@ boot(BootArgs) ->
     process_flag(trap_exit, true),
 
     %% Load the static nifs
+    esqlite3_nif:init2(),
     zlib:on_load(),
     erl_tracer:on_load(),
     prim_buffer:on_load(),
@@ -793,23 +794,46 @@ do_boot(Flags,Start) ->
     spawn_link(fun() -> do_boot(Self,Flags,Start) end).
 
 do_boot(Init,Flags,Start) ->
+    erlang:display({"do_boot", Init, Flags, Start}),
+
     process_flag(trap_exit,true),
+
     Root = get_root(Flags),
+    erlang:display({"get_root", Root}),
+
     Path = get_flag_list(path, Flags, false),
+    erlang:display({"get_flag_list", Path}),
+
     {Pa,Pz} = PathFls = path_flags(Flags),
+    erlang:display({"path_flags", PathFls}),
+
     start_prim_loader(Init, bs2ss(Path), PathFls),
+    erlang:display({"start_prim_loader"}),
+
     BootFile = bootfile(Flags,Root),
+    erlang:display({"bootfile", BootFile}),
+
     BootList = get_boot(BootFile,Root),
+    erlang:display({"get_boot", BootList}),
+
     LoadMode = b2a(get_flag(mode, Flags, false)),
+    erlang:display({"b2a mode", LoadMode}),
+
     Deb = b2a(get_flag(init_debug, Flags, false)),
+    erlang:display({"b2a init_debug", Deb}),
     catch ?ON_LOAD_HANDLER ! {init_debug_flag,Deb},
+
     BootVars = get_boot_vars(Root, Flags),
+    erlang:display({"get_boot_vars", BootVars}),
 
     PathChoice = code_path_choice(),
+    erlang:display({"code_path_choice", PathChoice}),
+
     Es = #es{init=Init,debug=Deb,path=Path,pa=Pa,pz=Pz,
 	     path_choice=PathChoice,
 	     prim_load=true,load_mode=LoadMode,
 	     vars=BootVars},
+
     eval_script(BootList, Es),
 
     %% To help identifying Purify windows that pop up,
@@ -896,22 +920,27 @@ get_boot(BootFile) ->
 %%
 
 eval_script([{progress,Info}=Progress|T], #es{debug=Deb}=Es) ->
+    erlang:display({"!!!!!!!!!!!!!!",eval_script, progress}),
     debug(Deb, Progress),
     init ! {self(),progress,Info},
     eval_script(T, Es);
 eval_script([{preLoaded,_}|T], #es{}=Es) ->
+    erlang:display({"!!!!!!!!!!!!!!",eval_script, preLoaded}),
     eval_script(T, Es);
 eval_script([{path,Path}|T], #es{path=false,pa=Pa,pz=Pz,
 				 path_choice=PathChoice,
 				 vars=Vars}=Es) ->
+    erlang:display({"!!!!!!!!!!!!!!",eval_script, path}),
     RealPath0 = make_path(Pa, Pz, Path, Vars),
     RealPath = patch_path(RealPath0, PathChoice),
     erl_prim_loader:set_path(RealPath),
     eval_script(T, Es);
 eval_script([{path,_}|T], #es{}=Es) ->
+    erlang:display({"!!!!!!!!!!!!!!",eval_script, path2}),
     %% Ignore, use the command line -path flag.
     eval_script(T, Es);
 eval_script([{kernel_load_completed}|T], #es{load_mode=Mode}=Es0) ->
+    erlang:display({"!!!!!!!!!!!!!!",eval_script, kernel_load_completed}),
     Es = case Mode of
 	     embedded -> Es0;
 	     _ -> Es0#es{prim_load=false}
@@ -919,9 +948,12 @@ eval_script([{kernel_load_completed}|T], #es{load_mode=Mode}=Es0) ->
     eval_script(T, Es);
 eval_script([{primLoad,Mods}|T], #es{init=Init,prim_load=PrimLoad}=Es)
   when is_list(Mods) ->
+    erlang:display({"!!!!!!!!!!!!!!",eval_script, primLoad}),
     case PrimLoad of
 	true ->
-	    load_modules(Mods, Init);
+	    %% load_modules(Mods, Init);
+      load_modules0(Mods, Init);
+	    %% ok;
 	false ->
 	    %% Do not load now, code_server does that dynamically!
 	    ok
@@ -929,17 +961,30 @@ eval_script([{primLoad,Mods}|T], #es{init=Init,prim_load=PrimLoad}=Es)
     eval_script(T, Es);
 eval_script([{kernelProcess,Server,{Mod,Fun,Args}}|T],
 	    #es{init=Init,debug=Deb}=Es) ->
+    erlang:display({"!!!!!!!!!!!!!!",eval_script, kernelProcess}),
     debug(Deb, {start,Server}),
     start_in_kernel(Server, Mod, Fun, Args, Init),
     eval_script(T, Es);
 eval_script([{apply,{Mod,Fun,Args}}=Apply|T], #es{debug=Deb}=Es) ->
+    erlang:display({"!!!!!!!!!!!!!!",eval_script, apply}),
+    erlang:display({Mod, Fun, Args}),
     debug(Deb, Apply),
     apply(Mod, Fun, Args),
     eval_script(T, Es);
 eval_script([], #es{}) ->
+    erlang:display({"!!!!!!!!!!!!!!",eval_script, empty}),
     ok;
 eval_script(What, #es{}) ->
+    erlang:display({"!!!!!!!!!!!!!!",eval_script, unexpected}),
     exit({'unexpected command in bootfile',What}).
+
+%% new way to load modules
+load_modules0([M|Ms], Init) ->
+     EnsLoad = ensure_loaded(M),
+     erlang:display({load_modules0, M, EnsLoad}),
+     load_modules0(Ms, Init);
+load_modules0([], Init) ->
+     ok.
 
 load_modules(Mods0, Init) ->
     Mods = [M || M <- Mods0, not erlang:module_loaded(M)],
@@ -1012,6 +1057,10 @@ extract_var([$/|Path],Var) -> {reverse(Var),Path};
 extract_var([H|T],Var)     -> extract_var(T,[H|Var]);
 extract_var([],Var)        -> {reverse(Var),[]}.
 
+%% handle only strict
+patch_path(Dirs, _) ->
+    erlang:display({patch_path, any}),
+    Dirs;
 patch_path(Dirs, strict) ->
     Dirs;
 patch_path(Dirs, relaxed) ->

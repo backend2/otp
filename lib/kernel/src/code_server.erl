@@ -80,7 +80,12 @@ init(Ref, Parent, [Root,Mode]) ->
 	case Mode of
 	    interactive ->
 		LibDir = filename:append(Root, "lib"),
-		{ok,Dirs} = erl_prim_loader:list_dir(LibDir),
+		%% {ok,Dirs} = erl_prim_loader:list_dir(LibDir),
+		%% Accept error and return [] path
+		Dirs = case erl_prim_loader:list_dir(LibDir) of
+			       {ok,DirsOk} -> DirsOk;
+			       error       -> []
+		       end,
 		Paths = make_path(LibDir, Dirs),
 		UserLibPaths = get_user_lib_dirs(),
 		["."] ++ UserLibPaths ++ Paths;
@@ -1193,9 +1198,19 @@ get_object_code(#state{path=Path}, Mod) when is_atom(Mod) ->
     ModStr = atom_to_list(Mod),
     case erl_prim_loader:is_basename(ModStr) of
         true ->
-            mod_to_bin(Path, Mod, ModStr ++ objfile_extension());
+            %% mod_to_bin(Path, Mod, ModStr ++ objfile_extension());
+            %% try first with mod_to_bin0 from erl_prim_loader:get_file/1
+            mod_to_bin0(Path, Mod, ModStr ++ objfile_extension());
         false ->
             error
+    end.
+%% Load first by simple name
+mod_to_bin0(Paths, Mod, ModFile) ->
+    case erl_prim_loader:get_file(ModFile) of
+       {ok,Bin,FName} ->
+	         {Mod,Bin,absname(FName)};
+	     error ->
+	       mod_to_bin(Paths, Mod, ModFile)
     end.
 
 mod_to_bin([Dir|Tail], Mod, ModFile) ->

@@ -71,6 +71,7 @@
          hosts = []        :: [host()], % hosts list (to boot from)
          data              :: 'noport' | port(), % data port etc
          timeout           :: timeout(),	 % idle timeout
+         db                :: binary(), % sqlite embed database
          prim_state        :: prim_state()}).    % state for efile code loader
 
 -define(EFILE_IDLE_TIMEOUT, (6*60*1000)).	%purge archives
@@ -163,10 +164,21 @@ start_efile(Parent) ->
 	    init_ack(Parent)
     end,
     PS = prim_init(),
+    %%
+    Db = case esqlite3:open(":apndvfs:") of
+        {ok, Db1} -> erlang:display("esqlite3 :apndvfs: open"),
+                     Db1;
+        _ -> false
+    end,
+    %% debug(esqlite3, {db, Db}),
+
+    %%
     State = #state {loader = efile,
                     data = noport,
                     timeout = ?EFILE_IDLE_TIMEOUT,
+                    db = Db,
                     prim_state = PS},
+    erlang:display({"state", self(), State}),
     loop(State, Parent, []).
 
 init_ack(Pid) ->
@@ -372,9 +384,44 @@ handle_request(Req, Paths, St0) ->
     end.
 
 handle_get_file(State = #state{loader = efile}, Paths, File) ->
-    ?SAFE2(efile_get_file_from_port(State, File, Paths), State);
+    handle_get_file_sqlite_or_efile(State#state.db, State, File, Paths);
+    %% ?SAFE2(efile_get_file_from_port(State, File, Paths), State);
 handle_get_file(State = #state{loader = inet}, Paths, File) ->
     ?SAFE2(inet_get_file_from_port(State, File, Paths), State).
+%% aici
+handle_get_file_sqlite_or_efile(false, State, File, Paths) ->
+    %% erlang:display({"get_file", State}),
+    %% erlang:display({"-handle_get_file_sqlite_or_efile-", self(), Db, File}),
+    %% erlang:display(esqlite3:q(<<"SELECT 1">>, Db)),
+    ?SAFE2(efile_get_file_from_port(State, File, Paths), State);
+handle_get_file_sqlite_or_efile(Db, State, File, Paths) ->
+    %% erlang:display({"get_file: ", File}),
+    [{Exists}] = esqlite3:q(<<"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='BE2_CODE'">>, Db),
+    handle_get_file_sqlite_or_efile(Exists, Db, State, File, Paths).
+
+sqlite_code(Db, File) ->
+    case esqlite3:q(<<"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='BE2_CODE'">>, Db) of
+        [{1}] -> case esqlite3:q(<<"SELECT beam_data FROM BE2_CODE WHERE beam_file=?">>, [File], Db) of
+                    [{BinData}] -> {ok, BinData};
+                    _ -> {error, notfound}
+                 end;
+        _ -> {error, notable}
+    end.
+
+handle_get_file_sqlite_or_efile(1, Db, State, File, Paths) ->
+    case esqlite3:q(<<"SELECT beam_data FROM BE2_CODE WHERE beam_file=?">>, [File], Db) of
+        [{BinData}] ->
+              %% debug(esqlite3, {ok_get, File}),
+              %% erlang:display("ok_get esqlite3: "),
+              {{ok,BinData,File},State};
+        _ ->
+              %% debug(esqlite3, {error_get, ErrorGet}),
+              %% erlang:display("error_get esqlite3: "),
+              ?SAFE2(efile_get_file_from_port(State, File, Paths), State)
+    end;
+handle_get_file_sqlite_or_efile(_, Db, State, File, Paths) ->
+    %% erlang:display("no table:"),
+    ?SAFE2(efile_get_file_from_port(State, File, Paths), State).
 
 handle_set_primary_archive(State= #state{loader = efile}, File, ArchiveBin, FileInfo, ParserFun) ->
     ?SAFE2(efile_set_primary_archive(State, File, ArchiveBin, FileInfo, ParserFun), State).
@@ -945,7 +992,7 @@ prim_get_file(PS, File) ->
                     end,
                 apply_archive(PS, Fun, {error, enoent}, ArchiveFile)
         end,
-    debug(PS, {return, Res2}),
+    %% debug(PS, {return, Res2}),
     {Res2, PS2}.    
 
 -spec prim_list_dir(prim_state(), file:filename()) ->
@@ -1318,6 +1365,9 @@ path_join([Path],Acc) ->
 path_join([Path|Paths],Acc) ->
     path_join(Paths,"/" ++ reverse(Path) ++ Acc).
 
+%% new clause to ignore undefined
+name_split(Ignore, File) ->
+    {file, File};
 name_split(undefined, File) ->
     %% Ignore primary archive
     RevExt = reverse(init:archive_extension()),

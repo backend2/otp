@@ -1445,19 +1445,28 @@ make_appl(Name) when is_atom(Name) ->
     FName = atom_to_list(Name) ++ ".app",
     case code:where_is_file(FName) of
 	non_existing ->
-	    {error, {file:format_error(enoent), FName}};
+	    case erl_prim_loader:get_file(FName) of
+	       {ok, _, _} ->
+	         make_appl2(FName, FName);
+	       _ ->
+	         {error, {file:format_error(enoent), FName}}
+	    end;
 	FullName ->
-	    case prim_consult(FullName) of
-		{ok, [Application]} ->
-		    {ok, make_appl_i(Application)};
-		{error, Reason} -> 
-		    {error, {file:format_error(Reason), FName}};
-                error ->
-                    {error, "bad encoding"}
-	    end
+	    make_appl2(FullName, FName)
     end;
 make_appl(Application) ->
     {ok, make_appl_i(Application)}.
+
+make_appl2(FullName, FName) ->
+    case prim_consult(FullName) of
+		  {ok, [Application]} ->
+		    {ok, make_appl_i(Application)};
+		  {error, Reason} ->
+		    {error, {file:format_error(Reason), FName}};
+      error ->
+        {error, "bad encoding"}
+	  end.
+
 
 prim_consult(FullName) ->
     case erl_prim_loader:get_file(FullName) of
