@@ -4,21 +4,21 @@ ERL_TOP=../../maint-21
 all: c_src/esqlite3_nif.o c_src/queue.o c_src/sqlite3.o priv/esqlite3_nif.a
 
 c_src/esqlite3_nif.o:
-	cc -c  -DSQLITE_THREADSAFE=1 -DSQLITE_USE_URI -DSQLITE_ENABLE_FTS3 \
+	cc -c -std=c99 -DSQLITE_THREADSAFE=1 -DSQLITE_USE_URI -DSQLITE_ENABLE_FTS3 \
 	-DSQLITE_ENABLE_FTS3_PARENTHESIS -g -Wall -fPIC \
 	-I$(ERL_TOP)/lib/erlang/usr/include \
 	-I$(ERL_TOP)/lib/erlang/erts-10.0.8/include \
 	  c_src/esqlite3_nif.c -o c_src/esqlite3_nif.o
 
 c_src/queue.o:
-	cc -c  -DSQLITE_THREADSAFE=1 -DSQLITE_USE_URI -DSQLITE_ENABLE_FTS3 \
+	cc -c -std=c99 -DSQLITE_THREADSAFE=1 -DSQLITE_USE_URI -DSQLITE_ENABLE_FTS3 \
 	-DSQLITE_ENABLE_FTS3_PARENTHESIS -g -Wall -fPIC \
 	-I$(ERL_TOP)/lib/erlang/usr/include \
 	-I$(ERL_TOP)/lib/erlang/erts-10.0.8/include \
 	  c_src/queue.c -o c_src/queue.o
 
 c_src/sqlite3.o:
-	cc -c  -DSQLITE_THREADSAFE=1 -DSQLITE_USE_URI -DSQLITE_ENABLE_FTS3 \
+	cc -c -std=c99 -DSQLITE_THREADSAFE=1 -DSQLITE_USE_URI -DSQLITE_ENABLE_FTS3 \
 	-DSQLITE_ENABLE_FTS3_PARENTHESIS -g -Wall -fPIC \
 	-I$(ERL_TOP)/lib/erlang/usr/include \
 	-I$(ERL_TOP)/lib/erlang/erts-10.0.8/include \
